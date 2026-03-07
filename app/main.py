@@ -1,7 +1,10 @@
 from fastapi import FastAPI
 from app.core.settings import settings
+from app.api.v1.router import router as api_router
 
 app = FastAPI(title="AsyncKeel Foundation Lite")
+
+app.include_router(api_router, prefix="/api/v1")
 
 @app.get("/health")
 async def health_check():
