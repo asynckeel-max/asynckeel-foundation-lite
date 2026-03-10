@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends
 from app.models.user import User
 from app.core.auth import hash_password, verify_password, create_access_token, verify_token
+from app.core.dependencies import get_current_user
 
 router = APIRouter()
 
@@ -26,8 +27,5 @@ def login(username: str, password: str):
     return {"access_token": token, "token_type": "bearer"}
 
 @router.get("/me")
-def me(token: str):
-    payload = verify_token(token)
-    if not payload:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    return {"username": payload["sub"]}
+def me(user = Depends(get_current_user)):
+    return user
