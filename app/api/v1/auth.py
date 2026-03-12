@@ -2,6 +2,8 @@ from fastapi import APIRouter, HTTPException, Depends
 from app.models.user import User
 from app.core.auth import hash_password, verify_password, create_access_token, verify_token
 from app.core.dependencies import get_current_user
+from sqlalchemy.orm import Session
+from app.db.deps import get_db
 
 router = APIRouter()
 
@@ -29,3 +31,8 @@ def login(username: str, password: str):
 @router.get("/me")
 def me(user = Depends(get_current_user)):
     return user
+
+@router.get("/users")
+def get_users(db: Session = Depends(get_db)):
+    users = db.execute("SELECT * FROM users")
+    return users.fetchall()
