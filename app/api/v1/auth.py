@@ -1,38 +1,60 @@
 from fastapi import APIRouter, HTTPException, Depends
-from app.models.user import User
-from app.core.auth import hash_password, verify_password, create_access_token, verify_token
-from app.core.dependencies import get_current_user
 from sqlalchemy.orm import Session
+
 from app.db.deps import get_db
+from app.models.user import User
+from app.schemas.user import UserCreate, UserResponse, UserLogin, Token
+from app.core.auth import hash_password, verify_password, create_access_token
+from app.core.dependencies import get_current_user
 
 router = APIRouter()
 
-fake_db = {}  
 
-@router.post("/register")
-def register(username: str, email: str, password: str):
-    if username in fake_db:
+# REGISTER
+@router.post("/register", response_model=UserResponse)
+def register(user: UserCreate, db: Session = Depends(get_db)):
+
+    existing = db.query(User).filter(User.username == user.username).first()
+
+    if existing:
         raise HTTPException(status_code=400, detail="Username already exists")
-    hashed = hash_password(password)
-    fake_db[username] = {
-        "email": email,
-        "hashed_password": hashed
-    }
-    return {"msg": "User created"}
 
-@router.post("/login")
-def login(username: str, password: str):
-    user = fake_db.get(username)
-    if not user or not verify_password(password, user["hashed_password"]):
+    new_user = User(
+        username=user.username,
+        password=hash_password(user.password)
+    )
+
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+
+    return new_user
+
+
+# LOGIN
+@router.post("/login", response_model=Token)
+def login(user: UserLogin, db: Session = Depends(get_db)):
+
+    db_user = db.query(User).filter(User.username == user.username).first()
+
+    if not db_user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = create_access_token({"sub": username})
-    return {"access_token": token, "token_type": "bearer"}
 
+    if not verify_password(user.password, db_user.password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    token = create_access_token({"sub": db_user.username})
+
+    return {
+        "access_token": token,
+        "token_type": "bearer"
+    }
+
+
+# CURRENT USER
 @router.get("/me")
-def me(user = Depends(get_current_user)):
-    return user
-
-@router.get("/users")
-def get_users(db: Session = Depends(get_db)):
-    users = db.execute("SELECT * FROM users")
-    return users.fetchall()
+def me(current_user: User = Depends(get_current_user)):
+    return {
+        "id": current_user.id,
+        "username": current_user.username
+    }
